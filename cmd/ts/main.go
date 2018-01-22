@@ -25,6 +25,7 @@ type line struct {
 	TotalNanos  int64         `json:"totalNanos"`
 	Total       string        `json:"total,omitempty"`
 	Text        string        `json:"text,omitempty"`
+	Previous    string        `json:"previous,omitempty"`
 }
 
 type configuration struct {
@@ -32,6 +33,7 @@ type configuration struct {
 	template   string // -template="..."
 	plain      bool   // -plain
 	version    string
+	previous   bool
 }
 
 var config = configuration{}
@@ -88,6 +90,7 @@ func init() {
 	flag.StringVar(&config.template, "template", "", "go template (https://golang.org/pkg/text/template)")
 	flag.StringVar(&config.timeFormat, "timeformat", "RFC3339", timeFormatsHelp())
 	flag.BoolVar(&config.plain, "plain", false, "-template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'")
+	flag.BoolVar(&config.previous, "previous", false, "include previous line")
 	flag.Parse()
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
 		config.timeFormat = knownFormat
@@ -108,6 +111,7 @@ func main() {
 	line := line{}
 	last := now
 	first := now
+	previous := ""
 	i := uint64(0)
 	for scanner.Scan() {
 		now = time.Now()
@@ -126,6 +130,10 @@ func main() {
 		line.TimeString = now.Format(config.timeFormat)
 		line.Text = scanner.Text()
 		line.I = i
+		if config.previous {
+			line.Previous = previous
+			previous = line.Text
+		}
 		if err := printer(&line); err != nil {
 			fmt.Fprintln(os.Stderr, "output error:", err)
 		}

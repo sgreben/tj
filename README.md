@@ -18,6 +18,8 @@ Or [download the binary](https://github.com/sgreben/ts/releases) from the releas
 
 ```text
 Usage of ts:  
+  -previous
+        include previous line
   -plain
         -template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'
   -template string
@@ -86,3 +88,26 @@ $ (echo Hello; echo World) | ts -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 ```
 
 The fields available to the template are specified in the [`line` struct](cmd/ts/main.go#L14).
+
+## Example
+
+Finding the slowest step in a `docker build` (using `jq`):
+
+```bash
+$ cat Dockerfile
+FROM alpine
+RUN echo About to be slow...
+RUN sleep 10
+RUN echo Done being slow
+```
+
+```bash
+docker build . |
+    grep --line-buffered -E -e '^(Step|Successfully built)' |
+    ts -previous |
+    jq -s 'max_by(.deltaNanos) | {step:.previous, duration:.delta}'
+```
+
+```json
+{"step":"Step 3/4 : RUN sleep 10","duration":"10.602026127s"}
+```
