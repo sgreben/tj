@@ -19,7 +19,7 @@ Or [download the binary](https://github.com/sgreben/ts/releases) from the releas
 ```text
 Usage of ts:
   -plain
-    	-template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'
+    	-template='{{.TimeString}} +{{.DeltaNanos}} {{.Text}}'
   -start string
     	a regex pattern. if given, only lines matching it (re)start the stopwatch
   -template string

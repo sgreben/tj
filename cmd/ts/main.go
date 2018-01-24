@@ -93,14 +93,14 @@ var start *regexp.Regexp
 func init() {
 	flag.StringVar(&config.template, "template", "", "go template (https://golang.org/pkg/text/template)")
 	flag.StringVar(&config.timeFormat, "timeformat", "RFC3339", timeFormatsHelp())
-	flag.BoolVar(&config.plain, "plain", false, "-template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'")
+	flag.BoolVar(&config.plain, "plain", false, "-template='{{.TimeString}} +{{.DeltaNanos}} {{.Text}}'")
 	flag.StringVar(&config.start, "start", "", "a regex pattern. if given, only lines matching it (re)start the stopwatch")
 	flag.Parse()
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
 		config.timeFormat = knownFormat
 	}
 	if config.plain {
-		config.template = "{{.Time}} +{{.DeltaNanos}} {{.Text}}"
+		config.template = "{{.TimeString}} +{{.DeltaNanos}} {{.Text}}"
 	}
 	if config.template != "" {
 		printer = templatePrinter(config.template)
