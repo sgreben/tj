@@ -1,4 +1,4 @@
-VERSION = 1.2.0
+VERSION = 2.0.0
 
 PACKAGES := $(shell go list -f {{.Dir}} ./...)
 GOFILES  := $(addsuffix /*.go,$(PACKAGES))

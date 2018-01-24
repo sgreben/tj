@@ -24,9 +24,9 @@ type line struct {
 	Delta       time.Duration `json:"-"`
 	TotalSecs   float64       `json:"totalSecs"`
 	TotalNanos  int64         `json:"totalNanos"`
-	Total       string        `json:"total,omitempty"`
+	TotalString string        `json:"total,omitempty"`
+	Total       time.Duration `json:"-"`
 	Text        string        `json:"text,omitempty"`
-	Previous    string        `json:"previous,omitempty"`
 	Start       string        `json:"start,omitempty"`
 }
 
@@ -36,7 +36,6 @@ type configuration struct {
 	plain      bool   // -plain
 	start      string // -start="..."
 	version    string
-	previous   bool
 }
 
 var config = configuration{}
@@ -96,7 +95,6 @@ func init() {
 	flag.StringVar(&config.timeFormat, "timeformat", "RFC3339", timeFormatsHelp())
 	flag.BoolVar(&config.plain, "plain", false, "-template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'")
 	flag.StringVar(&config.start, "start", "", "a regex pattern. if given, only lines matching it (re)start the stopwatch")
-	flag.BoolVar(&config.previous, "previous", false, "include previous line")
 	flag.Parse()
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
 		config.timeFormat = knownFormat
@@ -116,33 +114,28 @@ func init() {
 
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
-	now := time.Now()
-	line := line{}
-	last := now
-	first := now
-	previous := ""
+	line := line{Time: time.Now()}
+	first := line.Time
+	last := line.Time
 	i := uint64(0)
 	for scanner.Scan() {
-		now = time.Now()
+		now := time.Now()
 		delta := now.Sub(last)
 		total := now.Sub(first)
 		line.DeltaSecs = delta.Seconds()
 		line.DeltaNanos = delta.Nanoseconds()
-		line.Delta = delta
 		line.DeltaString = delta.String()
+		line.Delta = delta
 		line.TotalSecs = total.Seconds()
 		line.TotalNanos = total.Nanoseconds()
-		line.Total = total.String()
+		line.TotalString = total.String()
+		line.Total = total
 		line.TimeSecs = now.Unix()
 		line.TimeNanos = now.UnixNano()
-		line.Time = now
 		line.TimeString = now.Format(config.timeFormat)
+		line.Time = now
 		line.Text = scanner.Text()
 		line.I = i
-		if config.previous {
-			line.Previous = previous
-			previous = line.Text
-		}
 		if err := printer(&line); err != nil {
 			fmt.Fprintln(os.Stderr, "output error:", err)
 		}

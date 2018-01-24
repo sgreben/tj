@@ -20,13 +20,12 @@ Or [download the binary](https://github.com/sgreben/ts/releases) from the releas
 Usage of ts:
   -plain
     	-template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'
-  -previous
-    	include previous line
   -start string
     	a regex pattern. if given, only lines matching it (re)start the stopwatch
   -template string
     	go template (https://golang.org/pkg/text/template)
   -timeformat string
+      either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
 ```
 
 ### JSON output
@@ -88,7 +87,7 @@ $ (echo Hello; echo World) | ts -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 1 1516649679 World
 ```
 
-The fields available to the template are specified in the [`line` struct](cmd/ts/main.go#L14).
+The fields available to the template are specified in the [`line` struct](cmd/ts/main.go#L15).
 
 ## Example
 
