@@ -89,6 +89,8 @@ func timeFormatsHelp() string {
 	return buf.String()
 }
 
+var start *regexp.Regexp
+
 func init() {
 	flag.StringVar(&config.template, "template", "", "go template (https://golang.org/pkg/text/template)")
 	flag.StringVar(&config.timeFormat, "timeformat", "RFC3339", timeFormatsHelp())
@@ -107,6 +109,9 @@ func init() {
 	} else {
 		printer = jsonPrinter()
 	}
+	if config.start != "" {
+		start = regexp.MustCompile(config.start)
+	}
 }
 
 func main() {
@@ -117,10 +122,6 @@ func main() {
 	first := now
 	previous := ""
 	i := uint64(0)
-	var start *regexp.Regexp
-	if config.start != "" {
-		start = regexp.MustCompile(config.start)
-	}
 	for scanner.Scan() {
 		now = time.Now()
 		delta := now.Sub(last)

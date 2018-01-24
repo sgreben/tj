@@ -104,7 +104,7 @@ RUN echo Done being slow
 
 ```bash
 docker build . |
-    ts -start "^Step " |
+    ts -start ^Step |
     jq -s 'max_by(.deltaNanos) | {step:.start, duration:.delta}'
 ```
 
