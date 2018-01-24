@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"text/template"
 	"time"
 )
@@ -26,12 +27,14 @@ type line struct {
 	Total       string        `json:"total,omitempty"`
 	Text        string        `json:"text,omitempty"`
 	Previous    string        `json:"previous,omitempty"`
+	Start       string        `json:"start,omitempty"`
 }
 
 type configuration struct {
 	timeFormat string // -timeformat="..."
 	template   string // -template="..."
 	plain      bool   // -plain
+	start      string // -start="..."
 	version    string
 	previous   bool
 }
@@ -90,6 +93,7 @@ func init() {
 	flag.StringVar(&config.template, "template", "", "go template (https://golang.org/pkg/text/template)")
 	flag.StringVar(&config.timeFormat, "timeformat", "RFC3339", timeFormatsHelp())
 	flag.BoolVar(&config.plain, "plain", false, "-template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'")
+	flag.StringVar(&config.start, "start", "", "a regex pattern. if given, only lines matching it (re)start the stopwatch")
 	flag.BoolVar(&config.previous, "previous", false, "include previous line")
 	flag.Parse()
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
@@ -113,6 +117,10 @@ func main() {
 	first := now
 	previous := ""
 	i := uint64(0)
+	var start *regexp.Regexp
+	if config.start != "" {
+		start = regexp.MustCompile(config.start)
+	}
 	for scanner.Scan() {
 		now = time.Now()
 		delta := now.Sub(last)
@@ -137,7 +145,10 @@ func main() {
 		if err := printer(&line); err != nil {
 			fmt.Fprintln(os.Stderr, "output error:", err)
 		}
-		last = now
+		if start != nil && start.MatchString(line.Text) {
+			last = now
+			line.Start = line.Text
+		}
 		i++
 	}
 

@@ -17,15 +17,16 @@ Or [download the binary](https://github.com/sgreben/ts/releases) from the releas
 `ts` reads from stdin and writes to stdout.
 
 ```text
-Usage of ts:  
-  -previous
-        include previous line
+Usage of ts:
   -plain
-        -template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'
+    	-template='{{.Time}} +{{.DeltaNanos}} {{.Text}}'
+  -previous
+    	include previous line
+  -start string
+    	a regex pattern. if given, only lines matching it (re)start the stopwatch
   -template string
-        go template (https://golang.org/pkg/text/template)
+    	go template (https://golang.org/pkg/text/template)
   -timeformat string
-        either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
 ```
 
 ### JSON output
