@@ -104,9 +104,8 @@ RUN echo Done being slow
 
 ```bash
 docker build . |
-    grep --line-buffered -E -e '^(Step|Successfully built)' |
-    ts -previous |
-    jq -s 'max_by(.deltaNanos) | {step:.previous, duration:.delta}'
+    ts -start "^Step " |
+    jq -s 'max_by(.deltaNanos) | {step:.start, duration:.delta}'
 ```
 
 ```json
