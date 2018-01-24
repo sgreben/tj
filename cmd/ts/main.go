@@ -139,9 +139,13 @@ func main() {
 		if err := printer(&line); err != nil {
 			fmt.Fprintln(os.Stderr, "output error:", err)
 		}
-		if start != nil && start.MatchString(line.Text) {
+		if start != nil {
+			if start.MatchString(line.Text) {
+				last = now
+				line.Start = line.Text
+			}
+		} else {
 			last = now
-			line.Start = line.Text
 		}
 		i++
 	}
