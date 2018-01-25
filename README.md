@@ -95,7 +95,7 @@ The fields available to the template are specified in the [`line` struct](cmd/ts
 
 ### Stopwatch regex
 
-Sometimes you need to measure the duration *between* certain tokens in the input.
+Sometimes you need to measure the duration between certain *tokens* in the input.
 
 To help with this, `ts` can match each line against a regular expression and only reset the stopwatch (`delta`, `deltaSecs`, `deltaNanos`) when a line matches.
 
