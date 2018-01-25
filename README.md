@@ -10,7 +10,7 @@ Using go get:
 go get github.com/sgreben/ts/cmd/ts
 ```
 
-Or [download the binary](https://github.com/sgreben/ts/releases) from the releases page.
+Or [download the binary](https://github.com/sgreben/ts/releases/latest) from the releases page.
 
 ## Use it
 
