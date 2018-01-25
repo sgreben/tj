@@ -118,9 +118,6 @@ func init() {
 	if config.start != "" {
 		start = regexp.MustCompile(config.start)
 	}
-	if config.readJSON && config.jsonTemplate == "" {
-		config.jsonTemplate = "{{.}}"
-	}
 	if config.jsonTemplate != "" {
 		config.readJSON = true
 		jsonTemplate = template.Must(template.New("-jsontemplate").Option("missingkey=zero").Parse(config.jsonTemplate))
@@ -154,16 +151,18 @@ func main() {
 		line.I = i
 		match := line.Text
 		if config.readJSON {
-			b.Reset()
 			line.Object = new(interface{})
 			if err := json.Unmarshal([]byte(line.Text), &line.Object); err != nil {
-				fmt.Fprintln(os.Stderr, "parse error:", err)
+				fmt.Fprintln(os.Stderr, "JSON parse error:", err)
 			}
-			if err := jsonTemplate.Execute(b, line.Object); err != nil {
-				fmt.Fprintln(os.Stderr, "template error:", err)
+			if jsonTemplate != nil {
+				b.Reset()
+				if err := jsonTemplate.Execute(b, line.Object); err != nil {
+					fmt.Fprintln(os.Stderr, "template error:", err)
+				}
+				line.JSONText = b.String()
+				match = line.JSONText
 			}
-			line.JSONText = b.String()
-			match = line.JSONText
 		}
 		if err := printer(&line); err != nil {
 			fmt.Fprintln(os.Stderr, "output error:", err)
