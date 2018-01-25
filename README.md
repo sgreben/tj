@@ -18,14 +18,18 @@ Or [download the binary](https://github.com/sgreben/ts/releases) from the releas
 
 ```text
 Usage of ts:
-  -plain
-    	-template='{{.TimeString}} +{{.DeltaNanos}} {{.Text}}'
-  -start string
-    	a regex pattern. if given, only lines matching it (re)start the stopwatch
-  -template string
-    	go template (https://golang.org/pkg/text/template)
   -timeformat string
-      either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
+        either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
+  -template string
+        go template (https://golang.org/pkg/text/template)
+  -start string
+        a regex pattern. if given, only lines matching it (re)start the stopwatch
+  -readjson
+        parse each stdin line as JSON
+  -jsontemplate string
+        go template, used to extract text from json input. implies -readjson
+  -plain
+        -template='{{.TimeString}} +{{.DeltaNanos}} {{.Text}}'
 ```
 
 ### JSON output
@@ -89,6 +93,43 @@ $ (echo Hello; echo World) | ts -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 
 The fields available to the template are specified in the [`line` struct](cmd/ts/main.go#L15).
 
+### Stopwatch regex
+
+Sometimes you need to measure the duration *between* certain tokens in the input.
+
+To help with this, `ts` can match each line against a regular expression and only reset the stopwatch (`delta`, `deltaSecs`, `deltaNanos`) when a line matches.
+
+The regular expression can be specified via the `-start` parameter.
+
+### JSON input
+
+Using `-readjson`, you can tell `ts` to parse each input line as a separate JSON object.  Fields of this object can be referred to via `.Object` in the `line` struct, like this:
+
+```bash
+$ echo '{"hello": "World"}' | ts -readjson -template "{{.TimeString}} {{.Object.hello}}"
+2018-01-25T21:55:06+01:00 World
+```
+
+Additionally, you can also specify a template `-jsontemplate` to extract text from the object. The output of this template is matched against the stopwatch regex. 
+
+This allows you to use only specific fields of the object as stopwatch reset triggers. For example:
+
+```bash
+$ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) | 
+    ts -jsontemplate "{{.reset}}" -start yes -template "{{.I}} {{.DeltaNanos}}"
+0 14374
+1 1005916918
+2 2017292187
+3 79099
+```
+
+The output of the JSON template is stored in the field `.JSONText` of the `line` struct:
+
+```bash
+$ echo '{"message":"hello"}' | ts -jsontemplate "{{.message}}" -template "{{.TimeString}} {{.JSONText}}"
+2018-01-25T22:20:59+01:00 hello
+```
+
 ## Example
 
 Finding the slowest step in a `docker build` (using `jq`):
@@ -104,7 +145,7 @@ RUN echo Done being slow
 ```bash
 docker build . |
     ts -start ^Step |
-    jq -s 'max_by(.deltaNanos) | {step:.start, duration:.delta}'
+    jq -s 'max_by(.deltaNanos) | {step:.startText, duration:.delta}'
 ```
 
 ```json
