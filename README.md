@@ -120,6 +120,9 @@ Using `-readjson`, you can tell `ts` to parse each input line as a separate JSON
 
 ```bash
 $ echo '{"hello": "World"}' | ts -readjson -template "{{.TimeString}} {{.Object.hello}}"
+```
+
+```
 2018-01-25T21:55:06+01:00 World
 ```
 
@@ -130,6 +133,9 @@ This allows you to use only specific fields of the object as stopwatch reset tri
 ```bash
 $ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) | 
     ts -jsontemplate "{{.reset}}" -start yes -template "{{.I}} {{.DeltaNanos}}"
+```
+
+```
 0 14374
 1 1005916918
 2 2017292187
@@ -140,6 +146,9 @@ The output of the JSON template is stored in the field `.JSONText` of the `line`
 
 ```bash
 $ echo '{"message":"hello"}' | ts -jsontemplate "{{.message}}" -template "{{.TimeString}} {{.JSONText}}"
+```
+
+```
 2018-01-25T22:20:59+01:00 hello
 ```
 
