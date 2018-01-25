@@ -2,6 +2,19 @@
 
 `ts` timestamps lines read from standard input. 
 
+<!-- TOC -->
+
+- [Get it](#get-it)
+- [Use it](#use-it)
+    - [JSON output](#json-output)
+    - [Time format](#time-format)
+    - [Template output](#template-output)
+    - [Stopwatch regex](#stopwatch-regex)
+    - [JSON input](#json-input)
+- [Example](#example)
+
+<!-- /TOC -->
+
 ## Get it
 
 Using go get:
