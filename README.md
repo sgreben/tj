@@ -20,7 +20,7 @@
 Using go get:
 
 ```bash
-go get github.com/sgreben/ts/cmd/ts
+go get -u github.com/sgreben/ts/cmd/ts
 ```
 
 Or [download the binary](https://github.com/sgreben/ts/releases/latest) from the releases page.
