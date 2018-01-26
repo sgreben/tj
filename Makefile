@@ -1,10 +1,14 @@
-VERSION = 3.0.1
+VERSION = 3.0.3
 
 PACKAGES := $(shell go list -f {{.Dir}} ./...)
 GOFILES  := $(addsuffix /*.go,$(PACKAGES))
 GOFILES  := $(wildcard $(GOFILES))
 
 .PHONY: clean
+
+release: zip
+	hub release delete $(VERSION) || true
+	hub release create $(VERSION) -m "$(VERSION)" -a release/ts_$(VERSION)_osx_x86_64.zip -a release/ts_$(VERSION)_windows_x86_64.zip -a release/ts_$(VERSION)_linux_x86_64.zip
 
 zip: release/ts_$(VERSION)_osx_x86_64.zip release/ts_$(VERSION)_windows_x86_64.zip release/ts_$(VERSION)_linux_x86_64.zip
 
