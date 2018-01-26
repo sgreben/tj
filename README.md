@@ -1,8 +1,6 @@
 # tj - stdin line timestamps, JSON-friendly
 
-`tj` timestamps lines read from standard input. 
-
-<!-- TOC -->
+`tj` timestamps lines read from standard input.
 
 - [Get it](#get-it)
 - [Use it](#use-it)
@@ -12,8 +10,7 @@
     - [Stopwatch regex](#stopwatch-regex)
     - [JSON input](#json-input)
 - [Example](#example)
-
-<!-- /TOC -->
+- [Comments](https://github.com/sgreben/tj/issues/1)
 
 ## Get it
 
@@ -173,3 +170,7 @@ docker build . |
 ```json
 {"step":"Step 3/4 : RUN sleep 10","duration":"10.602026127s"}
 ```
+
+## Comments
+
+Feel free to [leave a comment](https://github.com/sgreben/tj/issues/1) or create an issue.
