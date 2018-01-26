@@ -1,6 +1,6 @@
-# ts - stdin line timestamps
+# tj - stdin line timestamps, JSON-friendly
 
-`ts` timestamps lines read from standard input. 
+`tj` timestamps lines read from standard input. 
 
 <!-- TOC -->
 
@@ -20,17 +20,17 @@
 Using go get:
 
 ```bash
-go get -u github.com/sgreben/ts/cmd/ts
+go get -u github.com/sgreben/tj/cmd/tj
 ```
 
-Or [download the binary](https://github.com/sgreben/ts/releases/latest) from the releases page.
+Or [download the binary](https://github.com/sgreben/tj/releases/latest) from the releases page.
 
 ## Use it
 
-`ts` reads from stdin and writes to stdout.
+`tj` reads from stdin and writes to stdout.
 
 ```text
-Usage of ts:
+Usage of tj:
   -timeformat string
         either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
   -template string
@@ -50,7 +50,7 @@ Usage of ts:
 The default output format is JSON, one object per line:
 
 ```bash
-$ (echo Hello; echo World) | ts
+$ (echo Hello; echo World) | tj
 ```
 
 ```json
@@ -63,7 +63,7 @@ $ (echo Hello; echo World) | ts
 You can set the format of the `time` field using the `-timeformat` parameter:
 
 ```bash
-$ (echo Hello; echo World) | ts -timeformat Kitchen
+$ (echo Hello; echo World) | tj -timeformat Kitchen
 ```
 
 ```json
@@ -96,7 +96,7 @@ The [constant names from pkg/time](https://golang.org/pkg/time/#pkg-constants) a
 You can also specify an output template using the `-template` parameter and [go template](https://golang.org/pkg/text/template) syntax:
 
 ```bash
-$ (echo Hello; echo World) | ts -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
+$ (echo Hello; echo World) | tj -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 ```
 
 ```json
@@ -104,22 +104,22 @@ $ (echo Hello; echo World) | ts -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 1 1516649679 World
 ```
 
-The fields available to the template are specified in the [`line` struct](cmd/ts/main.go#L15).
+The fields available to the template are specified in the [`line` struct](cmd/tj/main.go#L15).
 
 ### Stopwatch regex
 
 Sometimes you need to measure the duration between certain *tokens* in the input.
 
-To help with this, `ts` can match each line against a regular expression and only reset the stopwatch (`delta`, `deltaSecs`, `deltaNanos`) when a line matches.
+To help with this, `tj` can match each line against a regular expression and only reset the stopwatch (`delta`, `deltaSecs`, `deltaNanos`) when a line matches.
 
 The regular expression can be specified via the `-start` parameter.
 
 ### JSON input
 
-Using `-readjson`, you can tell `ts` to parse each input line as a separate JSON object.  Fields of this object can be referred to via `.Object` in the `line` struct, like this:
+Using `-readjson`, you can tell `tj` to parse each input line as a separate JSON object.  Fields of this object can be referred to via `.Object` in the `line` struct, like this:
 
 ```bash
-$ echo '{"hello": "World"}' | ts -readjson -template "{{.TimeString}} {{.Object.hello}}"
+$ echo '{"hello": "World"}' | tj -readjson -template "{{.TimeString}} {{.Object.hello}}"
 ```
 
 ```
@@ -132,7 +132,7 @@ This allows you to use only specific fields of the object as stopwatch reset tri
 
 ```bash
 $ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) | 
-    ts -jsontemplate "{{.reset}}" -start yes -template "{{.I}} {{.DeltaNanos}}"
+    tj -jsontemplate "{{.reset}}" -start yes -template "{{.I}} {{.DeltaNanos}}"
 ```
 
 ```
@@ -145,7 +145,7 @@ $ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) |
 The output of the JSON template is stored in the field `.JSONText` of the `line` struct:
 
 ```bash
-$ echo '{"message":"hello"}' | ts -jsontemplate "{{.message}}" -template "{{.TimeString}} {{.JSONText}}"
+$ echo '{"message":"hello"}' | tj -jsontemplate "{{.message}}" -template "{{.TimeString}} {{.JSONText}}"
 ```
 
 ```
@@ -166,7 +166,7 @@ RUN echo Done being slow
 
 ```bash
 docker build . |
-    ts -start ^Step |
+    tj -start ^Step |
     jq -s 'max_by(.deltaNanos) | {step:.startText, duration:.delta}'
 ```
 
