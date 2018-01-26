@@ -46,7 +46,7 @@ type configuration struct {
 type printerFunc func(line *line) error
 
 var (
-	config       = configuration{}
+	config       configuration
 	printer      printerFunc
 	start        *regexp.Regexp
 	jsonTemplate *template.Template
