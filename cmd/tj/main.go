@@ -43,7 +43,14 @@ type configuration struct {
 	version      string
 }
 
-var config = configuration{}
+type printerFunc func(line *line) error
+
+var (
+	config       = configuration{}
+	printer      printerFunc
+	start        *regexp.Regexp
+	jsonTemplate *template.Template
+)
 
 var timeFormats = map[string]string{
 	"ANSIC":       time.ANSIC,
@@ -62,10 +69,6 @@ var timeFormats = map[string]string{
 	"StampMicro":  time.StampMicro,
 	"StampNano":   time.StampNano,
 }
-
-type printerFunc func(line *line) error
-
-var printer printerFunc
 
 func jsonPrinter() printerFunc {
 	enc := json.NewEncoder(os.Stdout)
@@ -92,9 +95,6 @@ func timeFormatsHelp() string {
 	}
 	return buf.String()
 }
-
-var start *regexp.Regexp
-var jsonTemplate *template.Template
 
 func init() {
 	flag.StringVar(&config.template, "template", "", "go template (https://golang.org/pkg/text/template)")
