@@ -107,7 +107,7 @@ $ (echo Hello; echo World) | tj -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 1 1516649679 World
 ```
 
-The fields available to the template are specified in the [`line` struct](cmd/tj/main.go#L15).
+The fields available to the template are specified in the [`line` struct](cmd/tj/main.go#L19).
 
 Some templates are pre-defined and can be specified via `-template NAME`:
 
