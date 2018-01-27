@@ -150,6 +150,7 @@ There are several pre-defined color scales:
 | BlueToRed           | `#00F -> #F00`         |
 | CyanToRed           | `#0FF -> #F00`         |
 | GreenToRed          | `#0F0 -> #F00`         |
+| GreenToGreenToRed   | `#0F0 -> #0F0 -> #F00` |
 | WhiteToPurple       | `#FFF -> #F700FF`      |
 | WhiteToRed          | `#FFF -> #F00`         |
 | WhiteToBlueToRed    | `#FFF -> #00F -> #F00` |
@@ -215,7 +216,7 @@ RUN echo Done being slow
 ```
 
 ```bash
-docker build . |
+$ docker build . |
     tj -start ^Step |
     jq -s 'max_by(.deltaNanos) | {step:.startText, duration:.delta}'
 ```
@@ -223,6 +224,15 @@ docker build . |
 ```json
 {"step":"Step 3/4 : RUN sleep 10","duration":"10.602026127s"}
 ```
+
+Alternatively, using color output and buffering:
+
+```bash
+$ docker build . |
+    tj -start ^Step -template Color -scale GreenToGreenToRed -delta-buffer
+```
+
+![Docker colors](docs/images/docker.png)
 
 ## Comments
 

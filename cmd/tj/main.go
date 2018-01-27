@@ -46,6 +46,7 @@ type configuration struct {
 	colorScale   string        // -scale
 	fast         time.Duration // -scale-fast
 	slow         time.Duration // -scale-slow
+	buffer       bool          // -buffer
 	version      string
 }
 
@@ -86,14 +87,15 @@ var templates = map[string]string{
 }
 
 var colorScales = map[string]string{
-	"GreenToRed":       "#0F0 -> #F00",
-	"BlueToRed":        "#00F -> #F00",
-	"CyanToRed":        "#0FF -> #F00",
-	"WhiteToRed":       "#FFF -> #F00",
-	"WhiteToPurple":    "#FFF -> #F700FF",
-	"BlackToRed":       "#000 -> #F00",
-	"BlackToPurple":    "#000 -> #F700FF",
-	"WhiteToBlueToRed": "#FFF -> #00F -> #F00",
+	"GreenToRed":        "#0F0 -> #F00",
+	"GreenToGreenToRed": "#0F0 -> #0F0 -> #F00",
+	"BlueToRed":         "#00F -> #F00",
+	"CyanToRed":         "#0FF -> #F00",
+	"WhiteToRed":        "#FFF -> #F00",
+	"WhiteToPurple":     "#FFF -> #F700FF",
+	"BlackToRed":        "#000 -> #F00",
+	"BlackToPurple":     "#000 -> #F700FF",
+	"WhiteToBlueToRed":  "#FFF -> #00F -> #F00",
 }
 
 var templateFuncs = template.FuncMap{
@@ -159,6 +161,7 @@ func init() {
 	flag.StringVar(&config.colorScale, "scale", "BlueToRed", colorScalesHelp())
 	flag.DurationVar(&config.fast, "scale-fast", 100*time.Millisecond, "the lower bound for the color scale")
 	flag.DurationVar(&config.slow, "scale-slow", 2*time.Second, "the upper bound for the color scale")
+	flag.BoolVar(&config.buffer, "delta-buffer", false, "buffer lines between -start matches, copy delta values from final line to buffered lines")
 	flag.Parse()
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
 		config.timeFormat = knownFormat
@@ -186,8 +189,22 @@ func init() {
 	}
 }
 
+func flushLineBuffer(buffer *[]*line, line *line) {
+	for _, oldLine := range *buffer {
+		oldLine.DeltaSecs = line.DeltaSecs
+		oldLine.DeltaNanos = line.DeltaNanos
+		oldLine.DeltaString = line.DeltaString
+		oldLine.Delta = line.Delta
+		if err := printer(oldLine); err != nil {
+			fmt.Fprintln(os.Stderr, "output error:", err)
+		}
+	}
+	*buffer = (*buffer)[:0]
+}
+
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
+	lineBuffer := []*line{}
 	line := line{Time: time.Now()}
 	first := line.Time
 	last := line.Time
@@ -226,19 +243,32 @@ func main() {
 				match = line.JSONText
 			}
 		}
-		if err := printer(&line); err != nil {
-			fmt.Fprintln(os.Stderr, "output error:", err)
+		if !config.buffer {
+			if err := printer(&line); err != nil {
+				fmt.Fprintln(os.Stderr, "output error:", err)
+			}
 		}
 		if start != nil {
 			if start.MatchString(match) {
+				if config.buffer {
+					flushLineBuffer(&lineBuffer, &line)
+				}
 				last = now
 				line.StartText = line.Text
 				line.StartObject = line.Object
+			}
+			if config.buffer {
+				lineCopy := line
+				lineBuffer = append(lineBuffer, &lineCopy)
 			}
 		} else {
 			last = now
 		}
 		i++
+	}
+
+	if config.buffer {
+		flushLineBuffer(&lineBuffer, &line)
 	}
 
 	if err := scanner.Err(); err != nil {
