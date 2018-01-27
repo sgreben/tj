@@ -7,6 +7,7 @@
     - [JSON output](#json-output)
     - [Time format](#time-format)
     - [Template output](#template-output)
+    - [Color output](#color-output)
     - [Stopwatch regex](#stopwatch-regex)
     - [JSON input](#json-input)
 - [Example](#example)
@@ -31,15 +32,20 @@ Usage of tj:
   -timeformat string
         either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
   -template string
-        go template (https://golang.org/pkg/text/template)
+        either a go template (https://golang.org/pkg/text/template) or one of the predefined template names
   -start string
         a regex pattern. if given, only lines matching it (re)start the stopwatch
   -readjson
         parse each stdin line as JSON
   -jsontemplate string
         go template, used to extract text from json input. implies -readjson
-  -plain
-        -template='{{.TimeString}} +{{.DeltaNanos}} {{.Text}}'
+  -scale string
+        either a sequence of hex colors or one of the predefined color scale names (colors go from fastto slow)
+        (default "BlueToRed")
+  -scale-fast duration
+        the lower bound for the color scale (default 100ms)
+  -scale-slow duration
+        the upper bound for the color scale (default 2s)
 ```
 
 ### JSON output
@@ -72,21 +78,21 @@ The [constant names from pkg/time](https://golang.org/pkg/time/#pkg-constants) a
 
 | Name       | Format                              |
 |------------|-------------------------------------|
-| RubyDate   | Mon Jan 02 15:04:05 -0700 2006      |
-| RFC3339    | 2006-01-02T15:04:05Z07:00           |
-| Stamp      | Jan _2 15:04:05                     |
-| StampMicro | Jan _2 15:04:05.000000              |
-| RFC1123Z   | Mon, 02 Jan 2006 15:04:05 -0700     |
-| Kitchen    | 3:04PM                              |
-| RFC1123    | Mon, 02 Jan 2006 15:04:05 MST       |
-| RFC3339Nano| 2006-01-02T15:04:05.999999999Z07:00 |
-| RFC822     | 02 Jan 06 15:04 MST                 |
-| RFC850     | Monday, 02-Jan-06 15:04:05 MST      |
-| RFC822Z    | 02 Jan 06 15:04 -0700               |
-| StampMilli | Jan _2 15:04:05.000                 |
-| StampNano  | Jan _2 15:04:05.000000000           |
-| ANSIC      | Mon Jan _2 15:04:05 2006            |
-| UnixDate   | Mon Jan _2 15:04:05 MST 2006        |
+| ANSIC      | `Mon Jan _2 15:04:05 2006`          |
+| Kitchen    | `3:04PM`                            |
+| RFC1123    | `Mon, 02 Jan 2006 15:04:05 MST`     |
+| RFC1123Z   | `Mon, 02 Jan 2006 15:04:05 -0700`   |
+| RFC3339    | `2006-01-02T15:04:05Z07:00`         |
+| RFC3339Nano| `2006-01-02T15:04:05.999999999Z07:00`
+| RFC822     | `02 Jan 06 15:04 MST`               |
+| RFC822Z    | `02 Jan 06 15:04 -0700`             |
+| RFC850     | `Monday, 02-Jan-06 15:04:05 MST`    |
+| RubyDate   | `Mon Jan 02 15:04:05 -0700 2006`    |
+| Stamp      | `Jan _2 15:04:05`                   |
+| StampMicro | `Jan _2 15:04:05.000000`            |
+| StampMilli | `Jan _2 15:04:05.000`               |
+| StampNano  | `Jan _2 15:04:05.000000000`         |
+| UnixDate   | `Mon Jan _2 15:04:05 MST 2006`      |
 
 ### Template output
 
@@ -102,6 +108,53 @@ $ (echo Hello; echo World) | tj -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 ```
 
 The fields available to the template are specified in the [`line` struct](cmd/tj/main.go#L15).
+
+Some templates are pre-defined and can be specified via `-template NAME`:
+
+| Name       | Template                                     |
+|------------|----------------------------------------------|
+| Color      | `{{color .}}█{{reset}} {{.Text}}`            |
+| ColorText  | `{{color .}}{{.Text}}{{reset}}`              |
+| Delta      | `{{.DeltaNanos}} {{.Text}}`                  |
+| Time       | `{{.TimeString}} {{.Text}}`                  |
+| TimeDelta  | `{{.TimeString}} +{{.DeltaNanos}} {{.Text}}` |
+
+### Color output
+
+To help identify durations at a glance, `tj` maps durations to a color scale. The pre-defined templates `Color` and `ColorText` demonstrate this:
+
+```bash
+$ (echo fast; 
+   sleep 1; 
+   echo slower; 
+   sleep 1.5; 
+   echo slow; 
+   sleep 2; 
+   echo slowest) | tj -template Color
+```
+![Color output](docs/images/colors.png)
+
+The terminal foreground color can be set by using `{{color .}}` in the output template. The default terminal color can be restored using `{{reset}}`.
+
+The color scale can be set using the parameters `-scale`, `-scale-fast`, and  `-scale-slow`:
+
+- The `-scale` parameter defines the colors used in the scale.  
+- The `-scale-fast` and `-scale-slow` parameters define the boundaries of the scale: durations shorter than the value of `-scale-fast` are mapped to the leftmost color, durations longer than the value of `-scale-slow` are mapped to the rightmost color.
+
+There are several pre-defined color scales:
+
+| Name                | Scale                  |
+|---------------------|----------------------- |
+| BlackToPurple       | `#000 -> #F700FF`      |
+| BlackToRed          | `#000 -> #F00`         |
+| BlueToRed           | `#00F -> #F00`         |
+| CyanToRed           | `#0FF -> #F00`         |
+| GreenToRed          | `#0F0 -> #F00`         |
+| WhiteToPurple       | `#FFF -> #F700FF`      |
+| WhiteToRed          | `#FFF -> #F00`         |
+| WhiteToBlueToRed    | `#FFF -> #00F -> #F00` |
+
+You can also provide your own color scale using the same syntax as the pre-defined ones.
 
 ### Stopwatch regex
 

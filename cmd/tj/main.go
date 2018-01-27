@@ -8,8 +8,12 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
+	"strings"
 	"text/template"
 	"time"
+
+	"github.com/sgreben/tj/pkg/color"
 )
 
 type line struct {
@@ -34,12 +38,14 @@ type line struct {
 }
 
 type configuration struct {
-	timeFormat   string // -timeformat="..."
-	template     string // -template="..."
-	plain        bool   // -plain
-	start        string // -start="..."
-	readJSON     bool   // -readjson
-	jsonTemplate string // -jsontemplate="..."
+	timeFormat   string        // -timeformat="..."
+	template     string        // -template="..."
+	start        string        // -start="..."
+	readJSON     bool          // -readjson
+	jsonTemplate string        // -jsontemplate="..."
+	colorScale   string        // -scale
+	fast         time.Duration // -scale-fast
+	slow         time.Duration // -scale-slow
 	version      string
 }
 
@@ -50,6 +56,7 @@ var (
 	printer      printerFunc
 	start        *regexp.Regexp
 	jsonTemplate *template.Template
+	scale        color.Scale
 )
 
 var timeFormats = map[string]string{
@@ -70,6 +77,35 @@ var timeFormats = map[string]string{
 	"StampNano":   time.StampNano,
 }
 
+var templates = map[string]string{
+	"Time":      "{{.TimeString}} {{.Text}}",
+	"TimeDelta": "{{.TimeString}} +{{.DeltaNanos}} {{.Text}}",
+	"Delta":     "{{.DeltaNanos}} {{.Text}}",
+	"ColorText": "{{color .}}{{.Text}}{{reset}}",
+	"Color":     "{{color .}}█{{reset}} {{.Text}}",
+}
+
+var colorScales = map[string]string{
+	"GreenToRed":       "#0F0 -> #F00",
+	"BlueToRed":        "#00F -> #F00",
+	"CyanToRed":        "#0FF -> #F00",
+	"WhiteToRed":       "#FFF -> #F00",
+	"WhiteToPurple":    "#FFF -> #F700FF",
+	"BlackToRed":       "#000 -> #F00",
+	"BlackToPurple":    "#000 -> #F700FF",
+	"WhiteToBlueToRed": "#FFF -> #00F -> #F00",
+}
+
+var templateFuncs = template.FuncMap{
+	"color": foregroundColor,
+	"reset": func() string { return color.Reset },
+}
+
+func foregroundColor(line *line) string {
+	c := float64(line.DeltaNanos-int64(config.fast)) / float64(config.slow-config.fast)
+	return color.Foreground(scale(c))
+}
+
 func jsonPrinter() printerFunc {
 	enc := json.NewEncoder(os.Stdout)
 	return func(line *line) error {
@@ -78,7 +114,7 @@ func jsonPrinter() printerFunc {
 }
 
 func templatePrinter(t string) printerFunc {
-	template := template.Must(template.New("-template").Option("missingkey=zero").Parse(t))
+	template := template.Must(template.New("-template").Funcs(templateFuncs).Option("missingkey=zero").Parse(t))
 	newline := []byte("\n")
 	return func(line *line) error {
 		err := template.Execute(os.Stdout, line)
@@ -88,27 +124,53 @@ func templatePrinter(t string) printerFunc {
 }
 
 func timeFormatsHelp() string {
-	help := "either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)\n"
-	buf := bytes.NewBuffer([]byte(help))
+	help := []string{}
 	for name, format := range timeFormats {
-		fmt.Fprintln(buf, "\t", name, "-", format)
+		help = append(help, fmt.Sprint("\t", name, " - ", format))
 	}
-	return buf.String()
+	sort.Strings(help)
+	return "either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)\n" + strings.Join(help, "\n")
+}
+
+func templatesHelp() string {
+	help := []string{}
+	for name, template := range templates {
+		help = append(help, fmt.Sprint("\t", name, " - ", template))
+	}
+	sort.Strings(help)
+	return "either a go template (https://golang.org/pkg/text/template) or one of the predefined template names\n" + strings.Join(help, "\n")
+}
+
+func colorScalesHelp() string {
+	help := []string{}
+	for name, scale := range colorScales {
+		help = append(help, fmt.Sprint("\t", name, " - ", scale))
+	}
+	sort.Strings(help)
+	return "either a sequence of hex colors or one of the predefined color scale names (colors go from fast to slow)\n" + strings.Join(help, "\n")
 }
 
 func init() {
-	flag.StringVar(&config.template, "template", "", "go template (https://golang.org/pkg/text/template)")
+	flag.StringVar(&config.template, "template", "", templatesHelp())
 	flag.StringVar(&config.timeFormat, "timeformat", "RFC3339", timeFormatsHelp())
-	flag.BoolVar(&config.plain, "plain", false, "-template='{{.TimeString}} +{{.DeltaNanos}} {{.Text}}'")
 	flag.StringVar(&config.start, "start", "", "a regex pattern. if given, only lines matching it (re)start the stopwatch")
 	flag.BoolVar(&config.readJSON, "readjson", false, "parse each stdin line as JSON")
 	flag.StringVar(&config.jsonTemplate, "jsontemplate", "", "go template, used to extract text from json input. implies -readjson")
+	flag.StringVar(&config.colorScale, "scale", "BlueToRed", colorScalesHelp())
+	flag.DurationVar(&config.fast, "scale-fast", 100*time.Millisecond, "the lower bound for the color scale")
+	flag.DurationVar(&config.slow, "scale-slow", 2*time.Second, "the upper bound for the color scale")
 	flag.Parse()
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
 		config.timeFormat = knownFormat
 	}
-	if config.plain {
-		config.template = "{{.TimeString}} +{{.DeltaNanos}} {{.Text}}"
+	if knownTemplate, ok := templates[config.template]; ok {
+		config.template = knownTemplate
+	}
+	if knownScale, ok := colorScales[config.colorScale]; ok {
+		config.colorScale = knownScale
+	}
+	if config.colorScale != "" {
+		scale = color.NewScale(color.Parse(config.colorScale))
 	}
 	if config.template != "" {
 		printer = templatePrinter(config.template)
