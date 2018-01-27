@@ -232,7 +232,7 @@ $ docker build . |
     tj -start ^Step -template Color -scale GreenToGreenToRed -delta-buffer
 ```
 
-![Docker colors](docs/images/docker.png)
+![Docker build with color output](docs/images/docker.png)
 
 ## Comments
 
