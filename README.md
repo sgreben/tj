@@ -40,7 +40,7 @@ Usage of tj:
   -jsontemplate string
         go template, used to extract text from json input. implies -readjson
   -scale string
-        either a sequence of hex colors or one of the predefined color scale names (colors go from fastto slow)
+        either a sequence of hex colors or one of the predefined color scale names (colors go from fast to slow)
         (default "BlueToRed")
   -scale-fast duration
         the lower bound for the color scale (default 100ms)
