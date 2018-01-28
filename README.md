@@ -23,6 +23,12 @@ go get -u github.com/sgreben/tj/cmd/tj
 
 Or [download the binary](https://github.com/sgreben/tj/releases/latest) from the releases page.
 
+Also available as a [docker image](https://quay.io/repository/sergey_grebenshchikov/tj?tab=tags):
+
+```bash
+docker pull quay.io/sergey_grebenshchikov/tj
+```
+
 ## Use it
 
 `tj` reads from stdin and writes to stdout.
