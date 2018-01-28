@@ -46,6 +46,8 @@ Usage of tj:
         the lower bound for the color scale (default 100ms)
   -scale-slow duration
         the upper bound for the color scale (default 2s)
+  -delta-buffer
+        buffer lines between -start matches, copy delta values from final line to buffered lines
 ```
 
 ### JSON output
@@ -109,7 +111,7 @@ $ (echo Hello; echo World) | tj -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 
 The fields available to the template are specified in the [`line` struct](cmd/tj/main.go#L19).
 
-Some templates are pre-defined and can be specified via `-template NAME`:
+Some templates are pre-defined and can be used via `-template NAME`:
 
 | Name       | Template                                     |
 |------------|----------------------------------------------|

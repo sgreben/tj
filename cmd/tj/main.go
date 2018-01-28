@@ -43,10 +43,10 @@ type configuration struct {
 	start        string        // -start="..."
 	readJSON     bool          // -readjson
 	jsonTemplate string        // -jsontemplate="..."
-	colorScale   string        // -scale
-	fast         time.Duration // -scale-fast
-	slow         time.Duration // -scale-slow
-	buffer       bool          // -buffer
+	colorScale   string        // -scale="..."
+	fast         time.Duration // -scale-fast="..."
+	slow         time.Duration // -scale-slow="..."
+	buffer       bool          // -delta-buffer
 	version      string
 }
 
@@ -173,7 +173,7 @@ func init() {
 		config.colorScale = knownScale
 	}
 	if config.colorScale != "" {
-		scale = color.NewScale(color.Parse(config.colorScale))
+		scale = color.ParseScale(config.colorScale)
 	}
 	if config.template != "" {
 		printer = templatePrinter(config.template)
