@@ -38,25 +38,26 @@ type line struct {
 }
 
 type configuration struct {
-	timeFormat   string        // -timeformat="..."
-	template     string        // -template="..."
-	start        string        // -start="..."
-	readJSON     bool          // -readjson
-	jsonTemplate string        // -jsontemplate="..."
-	colorScale   string        // -scale="..."
-	fast         time.Duration // -scale-fast="..."
-	slow         time.Duration // -scale-slow="..."
-	buffer       bool          // -delta-buffer
-	version      string
+	timeFormat          string        // -timeformat="..."
+	template            string        // -template="..."
+	start               string        // -start="..."
+	readJSON            bool          // -readjson
+	jsonTemplate        string        // -jsontemplate="..."
+	colorScale          string        // -scale="..."
+	fast                time.Duration // -scale-fast="..."
+	slow                time.Duration // -scale-slow="..."
+	buffer              bool          // -delta-buffer
+	printVersionAndExit bool          // -version
 }
 
 type printerFunc func(line *line) error
 
 var (
+	version      string
 	config       configuration
 	printer      printerFunc
 	start        *regexp.Regexp
-	jsonTemplate *template.Template
+	jsonTemplate *templateWithBuffer
 	scale        color.Scale
 )
 
@@ -162,7 +163,12 @@ func init() {
 	flag.DurationVar(&config.fast, "scale-fast", 100*time.Millisecond, "the lower bound for the color scale")
 	flag.DurationVar(&config.slow, "scale-slow", 2*time.Second, "the upper bound for the color scale")
 	flag.BoolVar(&config.buffer, "delta-buffer", false, "buffer lines between -start matches, copy delta values from final line to buffered lines")
+	flag.BoolVar(&config.printVersionAndExit, "version", false, "print version and exit")
 	flag.Parse()
+	if config.printVersionAndExit {
+		fmt.Println(version)
+		os.Exit(0)
+	}
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
 		config.timeFormat = knownFormat
 	}
@@ -185,31 +191,60 @@ func init() {
 	}
 	if config.jsonTemplate != "" {
 		config.readJSON = true
-		jsonTemplate = template.Must(template.New("-jsontemplate").Option("missingkey=zero").Parse(config.jsonTemplate))
+		jsonTemplate = &templateWithBuffer{
+			template: template.Must(template.New("-jsontemplate").Option("missingkey=zero").Parse(config.jsonTemplate)),
+			buffer:   bytes.NewBuffer(nil),
+		}
 	}
 }
 
-func flushLineBuffer(buffer *[]*line, line *line) {
-	for _, oldLine := range *buffer {
+type lineBuffer []*line
+
+func (b *lineBuffer) flush(line *line) {
+	for i, oldLine := range *b {
 		oldLine.DeltaSecs = line.DeltaSecs
 		oldLine.DeltaNanos = line.DeltaNanos
 		oldLine.DeltaString = line.DeltaString
 		oldLine.Delta = line.Delta
-		if err := printer(oldLine); err != nil {
-			fmt.Fprintln(os.Stderr, "output error:", err)
-		}
+		oldLine.print()
+		(*b)[i] = nil
 	}
-	*buffer = (*buffer)[:0]
+	*b = (*b)[:0]
+}
+
+func (l *line) print() {
+	if err := printer(l); err != nil {
+		fmt.Fprintln(os.Stderr, "output error:", err)
+	}
+}
+
+func (l *line) parseJSON() {
+	l.Object = new(interface{})
+	if err := json.Unmarshal([]byte(l.Text), &l.Object); err != nil {
+		fmt.Fprintln(os.Stderr, "JSON parse error:", err)
+	}
+}
+
+type templateWithBuffer struct {
+	template *template.Template
+	buffer   *bytes.Buffer
+}
+
+func (t *templateWithBuffer) execute(data interface{}) string {
+	t.buffer.Reset()
+	if err := t.template.Execute(t.buffer, data); err != nil {
+		fmt.Fprintln(os.Stderr, "template error:", err)
+	}
+	return t.buffer.String()
 }
 
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
-	lineBuffer := []*line{}
+	lineBuffer := lineBuffer{}
 	line := line{Time: time.Now()}
 	first := line.Time
 	last := line.Time
 	i := uint64(0)
-	b := bytes.NewBuffer(nil)
 	for scanner.Scan() {
 		now := time.Now()
 		delta := now.Sub(last)
@@ -228,47 +263,42 @@ func main() {
 		line.Time = now
 		line.Text = scanner.Text()
 		line.I = i
-		match := line.Text
+		match := &line.Text
 		if config.readJSON {
-			line.Object = new(interface{})
-			if err := json.Unmarshal([]byte(line.Text), &line.Object); err != nil {
-				fmt.Fprintln(os.Stderr, "JSON parse error:", err)
-			}
+			line.parseJSON()
 			if jsonTemplate != nil {
-				b.Reset()
-				if err := jsonTemplate.Execute(b, line.Object); err != nil {
-					fmt.Fprintln(os.Stderr, "template error:", err)
-				}
-				line.JSONText = b.String()
-				match = line.JSONText
+				line.JSONText = jsonTemplate.execute(line.Object)
+				match = &line.JSONText
 			}
 		}
-		if !config.buffer {
-			if err := printer(&line); err != nil {
-				fmt.Fprintln(os.Stderr, "output error:", err)
-			}
+
+		startDefined := start != nil
+		printLine := !startDefined || !config.buffer
+		startMatches := startDefined && start.MatchString(*match)
+		resetStopwatch := !startDefined || startMatches
+
+		if printLine {
+			line.print()
 		}
-		if start != nil {
-			if start.MatchString(match) {
-				if config.buffer {
-					flushLineBuffer(&lineBuffer, &line)
-				}
-				last = now
-				line.StartText = line.Text
-				line.StartObject = line.Object
-			}
+		if startMatches {
+			line.StartText = line.Text
+			line.StartObject = line.Object
 			if config.buffer {
-				lineCopy := line
-				lineBuffer = append(lineBuffer, &lineCopy)
+				lineBuffer.flush(&line)
 			}
-		} else {
+		}
+		if !printLine {
+			lineCopy := line
+			lineBuffer = append(lineBuffer, &lineCopy)
+		}
+		if resetStopwatch {
 			last = now
 		}
 		i++
 	}
 
 	if config.buffer {
-		flushLineBuffer(&lineBuffer, &line)
+		lineBuffer.flush(&line)
 	}
 
 	if err := scanner.Err(); err != nil {

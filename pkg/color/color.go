@@ -29,8 +29,7 @@ func clamp(c float64) float64 {
 	return c
 }
 
-var notHexChars = regexp.MustCompile("[^0-9a-fA-F]")
-var spaces = regexp.MustCompile("\\s+")
+var notHexChars = regexp.MustCompile("[^0-9a-fA-F]+")
 
 func parse3(s string, c *rgb) {
 	r, _ := strconv.ParseUint(s[0:1], 16, 8)
@@ -53,8 +52,7 @@ func parse6(s string, c *rgb) {
 // ParseScale parses a sequence of hex colors as a Scale
 func ParseScale(scale string) Scale {
 	hexOnly := notHexChars.ReplaceAllString(scale, " ")
-	singleSpaced := spaces.ReplaceAllString(hexOnly, " ")
-	trimmed := strings.TrimSpace(singleSpaced)
+	trimmed := strings.TrimSpace(hexOnly)
 	lowercase := strings.ToLower(trimmed)
 	parts := strings.Split(lowercase, " ")
 
