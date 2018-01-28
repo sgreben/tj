@@ -4,7 +4,7 @@ PACKAGES := $(shell go list -f {{.Dir}} ./...)
 GOFILES  := $(addsuffix /*.go,$(PACKAGES))
 GOFILES  := $(wildcard $(GOFILES))
 
-.PHONY: clean release docker
+.PHONY: clean release docker docker-latest
 
 # go get -u github.com/github/hub
 release: zip
