@@ -2,6 +2,7 @@ package color
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,6 +18,34 @@ func index(r, g, b uint8) int {
 	gi := (int(g) * 5) / 0xFF
 	bi := (int(b) * 5) / 0xFF
 	return 36*ri + 6*gi + bi + 16
+}
+
+func Cube(scale Scale) Scale {
+	return func(c float64) (r, g, b uint8) {
+		c = clamp(c)
+		return scale(c * c * c)
+	}
+}
+
+func Sqr(scale Scale) Scale {
+	return func(c float64) (r, g, b uint8) {
+		c = clamp(c)
+		return scale(c * c)
+	}
+}
+
+func Sqrt(scale Scale) Scale {
+	return func(c float64) (r, g, b uint8) {
+		c = clamp(c)
+		return scale(math.Sqrt(c))
+	}
+}
+
+func Cubert(scale Scale) Scale {
+	return func(c float64) (r, g, b uint8) {
+		c = clamp(c)
+		return scale(math.Pow(c, 1.0/3.0))
+	}
 }
 
 func clamp(c float64) float64 {
@@ -71,7 +100,6 @@ func ParseScale(scale string) Scale {
 }
 
 func interpolate2(c float64, r1, g1, b1, r2, g2, b2 uint8) (r, g, b uint8) {
-	c = clamp(c)
 	r = uint8(float64(r1)*(1-c) + float64(r2)*c)
 	g = uint8(float64(g1)*(1-c) + float64(g2)*c)
 	b = uint8(float64(b1)*(1-c) + float64(b2)*c)

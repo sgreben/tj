@@ -8,10 +8,13 @@
     - [Time format](#time-format)
     - [Template output](#template-output)
     - [Color output](#color-output)
-    - [Stopwatch regex](#stopwatch-regex)
     - [JSON input](#json-input)
+    - [Stopwatch regex](#stopwatch-regex)
+    - [Stopwatch regex template](#stopwatch-regex-template)
+    - [Stopwatch condition](#stopwatch-condition)
 - [Example](#example)
 - [Comments](https://github.com/sgreben/tj/issues/1)
+
 
 ## Get it
 
@@ -35,25 +38,47 @@ docker pull quay.io/sergey_grebenshchikov/tj
 
 ```text
 Usage of tj:
-  -timeformat string
-        either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
   -template string
-        either a go template (https://golang.org/pkg/text/template) or one of the predefined template names
-  -start string
-        a regex pattern. if given, only lines matching it (re)start the stopwatch
-  -readjson
-        parse each stdin line as JSON
-  -jsontemplate string
-        go template, used to extract text from json input. implies -readjson
+    	either a go template (https://golang.org/pkg/text/template) or one of the predefined template names
+  -time-format string
+    	either a go time format string or one of the predefined format names (https://golang.org/pkg/time/#pkg-constants)
+  -time-zone string
+    	time zone to use (default "Local")
+  -match-regex string
+    	a regex pattern. if given, only tokens matching it (re)start the stopwatch
+  -match-template string
+    	go template, used to extract text used for -match-regex
+  -match-condition string
+    	go template. if given, only tokens that result in 'true' (re)start the stopwatch
+  -match-buffer
+    	buffer lines between matches of -match-regex / -match-condition, copy delta values from final line to buffered lines
+  -match string
+    	alias for -match-template
+  -condition string
+    	alias for -match-condition
+  -regex string
+    	alias for -match-regex
+  -read-json
+    	parse a sequence of JSON objects from stdin
   -scale string
-        either a sequence of hex colors or one of the predefined color scale names (colors go from fast to slow)
-        (default "BlueToRed")
+    	either a sequence of hex colors or one of the predefined color scale names (colors go from fast to slow)
+      (default "BlueToRed")
   -scale-fast duration
-        the lower bound for the color scale (default 100ms)
+    	the lower bound for the color scale (default 100ms)
   -scale-slow duration
-        the upper bound for the color scale (default 2s)
-  -delta-buffer
-        buffer lines between -start matches, copy delta values from final line to buffered lines
+    	the upper bound for the color scale (default 2s)
+  -scale-linear
+    	use linear scale (default true)
+  -scale-cube
+    	use cubic scale
+  -scale-cubert
+    	use cubic root scale
+  -scale-sqr
+    	use quadratic scale
+  -scale-sqrt
+    	use quadratic root scale
+  -version
+    	print version and exit
 ```
 
 ### JSON output
@@ -65,24 +90,24 @@ $ (echo Hello; echo World) | tj
 ```
 
 ```json
-{"timeSecs":1516648762,"timeNanos":1516648762008900882,"time":"2018-01-22T20:19:22+01:00","deltaSecs":0.000015003,"deltaNanos":15003,"delta":"15.003µs","totalSecs":0.000015003,"totalNanos":15003,"total":"15.003µs","text":"Hello"}
-{"timeSecs":1516648762,"timeNanos":1516648762009093926,"time":"2018-01-22T20:19:22+01:00","deltaSecs":0.000193044,"deltaNanos":193044,"delta":"193.044µs","totalSecs":0.000208047,"totalNanos":208047,"total":"208.047µs","text":"World"}
+{"timeSecs":1517592179,"timeNanos":1517592179895262811,"time":"2018-02-02T18:22:59+01:00","deltaSecs":0.000016485,"deltaNanos":16485,"delta":"16.485µs","totalSecs":0.000016485,"totalNanos":16485,"total":"16.485µs","text":"Hello"}
+{"timeSecs":1517592179,"timeNanos":1517592179895451948,"time":"2018-02-02T18:22:59+01:00","deltaSecs":0.000189137,"deltaNanos":189137,"delta":"189.137µs","totalSecs":0.000205622,"totalNanos":205622,"total":"205.622µs","text":"World"}
 ```
 
 ### Time format
 
-You can set the format of the `time` field using the `-timeformat` parameter:
+You can set the format of the `time` field using the `-time-format` parameter:
 
 ```bash
-$ (echo Hello; echo World) | tj -timeformat Kitchen
+$ (echo Hello; echo World) | tj -time-format Kitchen
 ```
 
 ```json
-{"timeSecs":1516648899,"timeNanos":1516648899954888290,"time":"8:21PM","deltaSecs":0.000012913,"deltaNanos":12913,"delta":"12.913µs","totalSecs":0.000012913,"totalNanos":12913,"total":"12.913µs","text":"Hello"}
-{"timeSecs":1516648899,"timeNanos":1516648899955092012,"time":"8:21PM","deltaSecs":0.000203722,"deltaNanos":203722,"delta":"203.722µs","totalSecs":0.000216635,"totalNanos":216635,"total":"216.635µs","text":"World"}
+{"timeSecs":1517592194,"timeNanos":1517592194875016639,"time":"6:23PM","deltaSecs":0.000017142,"deltaNanos":17142,"delta":"17.142µs","totalSecs":0.000017142,"totalNanos":17142,"total":"17.142µs","text":"Hello"}
+{"timeSecs":1517592194,"timeNanos":1517592194875197515,"time":"6:23PM","deltaSecs":0.000180876,"deltaNanos":180876,"delta":"180.876µs","totalSecs":0.000198018,"totalNanos":198018,"total":"198.018µs","text":"World"}
 ```
 
-The [constant names from pkg/time](https://golang.org/pkg/time/#pkg-constants) as well as regular go time layouts are admissible values for `-timeformat`:
+The [constant names from pkg/time](https://golang.org/pkg/time/#pkg-constants) as well as regular go time layouts are admissible values for `-time-format`:
 
 | Name       | Format                              |
 |------------|-------------------------------------|
@@ -115,17 +140,19 @@ $ (echo Hello; echo World) | tj -template '{{ .I }} {{.TimeSecs}} {{.Text}}'
 1 1516649679 World
 ```
 
-The fields available to the template are specified in the [`line` struct](cmd/tj/main.go#L19).
+The fields available to the template are specified in the [`token` struct](cmd/tj/main.go#L18).
 
 Some templates are pre-defined and can be used via `-template NAME`:
 
-| Name       | Template                                     |
-|------------|----------------------------------------------|
-| Color      | `{{color .}}█{{reset}} {{.Text}}`            |
-| ColorText  | `{{color .}}{{.Text}}{{reset}}`              |
-| Delta      | `{{.DeltaNanos}} {{.Text}}`                  |
-| Time       | `{{.TimeString}} {{.Text}}`                  |
-| TimeDelta  | `{{.TimeString}} +{{.DeltaNanos}} {{.Text}}` |
+| Name       | Template                                         |
+|------------|--------------------------------------------------|
+| Color      | `{{color .}}█{{reset}} {{.Text}}`                |
+| ColorText  | `{{color .}}{{.Text}}{{reset}}`                  |
+| Delta      | `{{.DeltaNanos}} {{.Text}}`                      |
+| Text       | `{{.Text}}`                                      |
+| Time       | `{{.TimeString}} {{.Text}}`                      |
+| TimeDelta  | `{{.TimeString}} +{{.DeltaNanos}} {{.Text}}`     |
+| TimeColor  | `{{.TimeString}} {{color .}}█{{reset}} {{.Text}}`|
 
 ### Color output
 
@@ -149,6 +176,11 @@ The color scale can be set using the parameters `-scale`, `-scale-fast`, and  `-
 - The `-scale` parameter defines the colors used in the scale.  
 - The `-scale-fast` and `-scale-slow` parameters define the boundaries of the scale: durations shorter than the value of `-scale-fast` are mapped to the leftmost color, durations longer than the value of `-scale-slow` are mapped to the rightmost color.
 
+The scale is linear by default, but can be transformed:
+
+- `-scale-sqr`, `-scale-sqrt` yields a quadratic (root) scale
+- `-scale-cube`, `-scale-cubert` yields a cubic (root) scale
+
 There are several pre-defined color scales:
 
 | Name                | Scale                  |
@@ -165,33 +197,44 @@ There are several pre-defined color scales:
 
 You can also provide your own color scale using the same syntax as the pre-defined ones.
 
-### Stopwatch regex
-
-Sometimes you need to measure the duration between certain *tokens* in the input.
-
-To help with this, `tj` can match each line against a regular expression and only reset the stopwatch (`delta`, `deltaSecs`, `deltaNanos`) when a line matches.
-
-The regular expression can be specified via the `-start` parameter.
-
 ### JSON input
 
-Using `-readjson`, you can tell `tj` to parse each input line as a separate JSON object.  Fields of this object can be referred to via `.Object` in the `line` struct, like this:
+Using `-read-json`, you can tell `tj` to parse stdin as a sequence of JSON objects. The parsed object can be referred to via `.Object`, like this:
 
 ```bash
-$ echo '{"hello": "World"}' | tj -readjson -template "{{.TimeString}} {{.Object.hello}}"
+$ echo '{"hello": "World"}' | tj -read-json -template "{{.TimeString}} {{.Object.hello}}"
 ```
 
 ```
 2018-01-25T21:55:06+01:00 World
 ```
 
-Additionally, you can also specify a template `-jsontemplate` to extract text from the object. The output of this template is matched against the stopwatch regex. 
+The exact JSON string that was parsed can be recovered using `.Text`:
 
-This allows you to use only specific fields of the object as stopwatch reset triggers. For example:
+```bash
+$ echo '{"hello"   :    "World"} {   }' | tj -read-json -template "{{.TimeString}} {{.Text}}"
+```
+
+```
+2018-01-25T21:55:06+01:00 {"hello"   :    "World"}
+2018-01-25T21:55:06+01:00 {   }
+```
+
+### Stopwatch regex
+
+Sometimes you need to measure the duration between certain *tokens* in the input.
+
+To help with this, `tj` can match each line against a regular expression and only reset the stopwatch (`delta`, `deltaSecs`, `deltaNanos`) when a line matches. The regular expression can be specified via the `-match-regex` (alias `-regex`) parameter.
+
+### Stopwatch regex template
+
+When using `-match-regex`, you can also specify a template `-match-template` (alias `-match`) to extract text from the current token. The output of this template is matched against the stopwatch regex. 
+
+This allows you to use only specific fields of JSON objects as stopwatch reset triggers. For example:
 
 ```bash
 $ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) | 
-    tj -jsontemplate "{{.reset}}" -start yes -template "{{.I}} {{.DeltaNanos}}"
+    tj -read-json -match .reset -regex yes -template "{{.I}} {{.DeltaNanos}}"
 ```
 
 ```
@@ -201,15 +244,19 @@ $ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) |
 3 79099
 ```
 
-The output of the JSON template is stored in the field `.JSONText` of the `line` struct:
+The output of the match template is stored in the field `.MatchText` of the `token` struct:
 
 ```bash
-$ echo '{"message":"hello"}' | tj -jsontemplate "{{.message}}" -template "{{.TimeString}} {{.JSONText}}"
+$ echo '{"message":"hello"}' | tj -read-json -match-template .message -template "{{.TimeString}} {{.MatchText}}"
 ```
 
 ```
 2018-01-25T22:20:59+01:00 hello
 ```
+
+### Stopwatch condition
+
+Additionally to `-match-regex`, you can specify a `-match-condition` go template. If this template produces the literal string `true`, the stopwatch is reset - "matches" of the `-match-condition` are treated like matches of the `-match-regex`.
 
 ## Example
 
@@ -225,8 +272,8 @@ RUN echo Done being slow
 
 ```bash
 $ docker build . |
-    tj -start ^Step |
-    jq -s 'max_by(.deltaNanos) | {step:.startText, duration:.delta}'
+    tj -regex ^Step |
+    jq -s 'max_by(.deltaNanos) | {step:.start.text, duration:.delta}'
 ```
 
 ```json
@@ -237,7 +284,7 @@ Alternatively, using color output and buffering:
 
 ```bash
 $ docker build . |
-    tj -start ^Step -template Color -scale GreenToGreenToRed -delta-buffer
+    tj -regex ^Step -match-buffer -template Color -scale-cube
 ```
 
 ![Docker build with color output](docs/images/docker.png)

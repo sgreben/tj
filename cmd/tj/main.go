@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -16,8 +15,8 @@ import (
 	"github.com/sgreben/tj/pkg/color"
 )
 
-type line struct {
-	I           uint64        `json:"-"` // line number
+type token struct {
+	I           uint64        `json:"-"` // token index
 	TimeSecs    int64         `json:"timeSecs"`
 	TimeNanos   int64         `json:"timeNanos"`
 	TimeString  string        `json:"time,omitempty"`
@@ -30,36 +29,56 @@ type line struct {
 	TotalNanos  int64         `json:"totalNanos"`
 	TotalString string        `json:"total,omitempty"`
 	Total       time.Duration `json:"-"`
-	Text        string        `json:"text,omitempty"`
-	StartText   string        `json:"startText,omitempty"`
-	JSONText    string        `json:"jsonText,omitempty"`
-	Object      interface{}   `json:"object,omitempty"`
-	StartObject interface{}   `json:"startObject,omitempty"`
+	MatchText   string        `json:"-"`
+	Start       interface{}   `json:"start,omitempty"`
+}
+
+func (t *token) copyDeltasFrom(token *token) {
+	t.DeltaSecs = token.DeltaSecs
+	t.DeltaNanos = token.DeltaNanos
+	t.DeltaString = token.DeltaString
+	t.Delta = token.Delta
 }
 
 type configuration struct {
-	timeFormat          string        // -timeformat="..."
+	timeFormat          string        // -time-format="..."
+	timeZone            string        // -time-zone="..."
 	template            string        // -template="..."
-	start               string        // -start="..."
-	readJSON            bool          // -readjson
-	jsonTemplate        string        // -jsontemplate="..."
-	colorScale          string        // -scale="..."
-	fast                time.Duration // -scale-fast="..."
-	slow                time.Duration // -scale-slow="..."
-	buffer              bool          // -delta-buffer
+	matchRegex          string        // -match-regex="..."
+	matchTemplate       string        // -match-template="..."
+	matchCondition      string        // -match-condition="..."
+	buffer              bool          // -match-buffer
+	readJSON            bool          // -read-json
+	scaleText           string        // -scale="..."
+	scaleFast           time.Duration // -scale-fast="..."
+	scaleSlow           time.Duration // -scale-slow="..."
+	scaleCube           bool          // -scale-cube
+	scaleSqr            bool          // -scale-sqr
+	scaleLinear         bool          // -scale-linear
+	scaleSqrt           bool          // -scale-sqrt
+	scaleCubert         bool          // -scale-cubert
 	printVersionAndExit bool          // -version
 }
 
-type printerFunc func(line *line) error
+type printerFunc func(interface{}) error
 
 var (
-	version      string
-	config       configuration
-	printer      printerFunc
-	start        *regexp.Regexp
-	jsonTemplate *templateWithBuffer
-	scale        color.Scale
+	version        string
+	config         configuration
+	printer        printerFunc
+	matchRegex     *regexp.Regexp
+	matchCondition *templateWithBuffer
+	matchTemplate  *templateWithBuffer
+	scale          color.Scale
+	tokens         tokenStream
+	location       *time.Location
 )
+
+func print(data interface{}) {
+	if err := printer(data); err != nil {
+		fmt.Fprintln(os.Stderr, "output error:", err)
+	}
+}
 
 var timeFormats = map[string]string{
 	"ANSIC":       time.ANSIC,
@@ -80,11 +99,13 @@ var timeFormats = map[string]string{
 }
 
 var templates = map[string]string{
+	"Text":      "{{.Text}}",
 	"Time":      "{{.TimeString}} {{.Text}}",
 	"TimeDelta": "{{.TimeString}} +{{.DeltaNanos}} {{.Text}}",
 	"Delta":     "{{.DeltaNanos}} {{.Text}}",
 	"ColorText": "{{color .}}{{.Text}}{{reset}}",
 	"Color":     "{{color .}}█{{reset}} {{.Text}}",
+	"TimeColor": "{{.TimeString}} {{color .}}█{{reset}} {{.Text}}",
 }
 
 var colorScales = map[string]string{
@@ -104,23 +125,22 @@ var templateFuncs = template.FuncMap{
 	"reset": func() string { return color.Reset },
 }
 
-func foregroundColor(line *line) string {
-	c := float64(line.DeltaNanos-int64(config.fast)) / float64(config.slow-config.fast)
+func foregroundColor(o tokenOwner) string {
+	token := o.Token()
+	c := float64(token.DeltaNanos-int64(config.scaleFast)) / float64(config.scaleSlow-config.scaleFast)
 	return color.Foreground(scale(c))
 }
 
 func jsonPrinter() printerFunc {
 	enc := json.NewEncoder(os.Stdout)
-	return func(line *line) error {
-		return enc.Encode(line)
-	}
+	return enc.Encode
 }
 
 func templatePrinter(t string) printerFunc {
 	template := template.Must(template.New("-template").Funcs(templateFuncs).Option("missingkey=zero").Parse(t))
 	newline := []byte("\n")
-	return func(line *line) error {
-		err := template.Execute(os.Stdout, line)
+	return func(data interface{}) error {
+		err := template.Execute(os.Stdout, data)
 		os.Stdout.Write(newline)
 		return err
 	}
@@ -153,21 +173,44 @@ func colorScalesHelp() string {
 	return "either a sequence of hex colors or one of the predefined color scale names (colors go from fast to slow)\n" + strings.Join(help, "\n")
 }
 
+func addTemplateDelimitersIfLiteral(t string) string {
+	if !strings.Contains(t, "{{") {
+		return "{{" + t + "}}"
+	}
+	return t
+}
+
 func init() {
 	flag.StringVar(&config.template, "template", "", templatesHelp())
-	flag.StringVar(&config.timeFormat, "timeformat", "RFC3339", timeFormatsHelp())
-	flag.StringVar(&config.start, "start", "", "a regex pattern. if given, only lines matching it (re)start the stopwatch")
-	flag.BoolVar(&config.readJSON, "readjson", false, "parse each stdin line as JSON")
-	flag.StringVar(&config.jsonTemplate, "jsontemplate", "", "go template, used to extract text from json input. implies -readjson")
-	flag.StringVar(&config.colorScale, "scale", "BlueToRed", colorScalesHelp())
-	flag.DurationVar(&config.fast, "scale-fast", 100*time.Millisecond, "the lower bound for the color scale")
-	flag.DurationVar(&config.slow, "scale-slow", 2*time.Second, "the upper bound for the color scale")
-	flag.BoolVar(&config.buffer, "delta-buffer", false, "buffer lines between -start matches, copy delta values from final line to buffered lines")
+	flag.StringVar(&config.timeFormat, "time-format", "RFC3339", timeFormatsHelp())
+	flag.StringVar(&config.timeZone, "time-zone", "Local", "time zone to use")
+	flag.StringVar(&config.matchRegex, "regex", "", "alias for -match-regex")
+	flag.StringVar(&config.matchRegex, "match-regex", "", "a regex pattern. if given, only tokens matching it (re)start the stopwatch")
+	flag.StringVar(&config.matchCondition, "condition", "", "alias for -match-condition")
+	flag.StringVar(&config.matchCondition, "match-condition", "", "go template. if given, only tokens that result in 'true' (re)start the stopwatch")
+	flag.StringVar(&config.matchTemplate, "match", "", "alias for -match-template")
+	flag.StringVar(&config.matchTemplate, "match-template", "", "go template, used to extract text used for -match-regex")
+	flag.BoolVar(&config.buffer, "match-buffer", false, "buffer lines between matches of -match-regex / -match-condition, copy delta values from final line to buffered lines")
+	flag.BoolVar(&config.readJSON, "read-json", false, "parse a sequence of JSON objects from stdin")
+	flag.StringVar(&config.scaleText, "scale", "BlueToRed", colorScalesHelp())
+	flag.DurationVar(&config.scaleFast, "scale-fast", 100*time.Millisecond, "the lower bound for the color scale")
+	flag.DurationVar(&config.scaleSlow, "scale-slow", 2*time.Second, "the upper bound for the color scale")
+	flag.BoolVar(&config.scaleCube, "scale-cube", false, "use cubic scale")
+	flag.BoolVar(&config.scaleSqr, "scale-sqr", false, "use quadratic scale")
+	flag.BoolVar(&config.scaleLinear, "scale-linear", true, "use linear scale")
+	flag.BoolVar(&config.scaleSqrt, "scale-sqrt", false, "use quadratic root scale")
+	flag.BoolVar(&config.scaleCubert, "scale-cubert", false, "use cubic root scale")
 	flag.BoolVar(&config.printVersionAndExit, "version", false, "print version and exit")
 	flag.Parse()
 	if config.printVersionAndExit {
 		fmt.Println(version)
 		os.Exit(0)
+	}
+	var err error
+	location, err = time.LoadLocation(config.timeZone)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "time zone parse error:", err)
+		os.Exit(1)
 	}
 	if knownFormat, ok := timeFormats[config.timeFormat]; ok {
 		config.timeFormat = knownFormat
@@ -175,53 +218,53 @@ func init() {
 	if knownTemplate, ok := templates[config.template]; ok {
 		config.template = knownTemplate
 	}
-	if knownScale, ok := colorScales[config.colorScale]; ok {
-		config.colorScale = knownScale
+	if knownScale, ok := colorScales[config.scaleText]; ok {
+		config.scaleText = knownScale
 	}
-	if config.colorScale != "" {
-		scale = color.ParseScale(config.colorScale)
+	if config.scaleText != "" {
+		scale = color.ParseScale(config.scaleText)
+	}
+	if config.scaleLinear {
+		// do nothing
+	}
+	if config.scaleSqrt {
+		scale = color.Sqrt(scale)
+	}
+	if config.scaleCubert {
+		scale = color.Cubert(scale)
+	}
+	if config.scaleSqr {
+		scale = color.Sqr(scale)
+	}
+	if config.scaleCube {
+		scale = color.Cube(scale)
 	}
 	if config.template != "" {
 		printer = templatePrinter(config.template)
 	} else {
 		printer = jsonPrinter()
 	}
-	if config.start != "" {
-		start = regexp.MustCompile(config.start)
+	if config.matchRegex != "" {
+		matchRegex = regexp.MustCompile(config.matchRegex)
 	}
-	if config.jsonTemplate != "" {
-		config.readJSON = true
-		jsonTemplate = &templateWithBuffer{
-			template: template.Must(template.New("-jsontemplate").Option("missingkey=zero").Parse(config.jsonTemplate)),
+	if config.readJSON {
+		tokens = newJSONStream()
+	} else {
+		tokens = newLineStream()
+	}
+	if config.matchTemplate != "" {
+		config.matchTemplate = addTemplateDelimitersIfLiteral(config.matchTemplate)
+		matchTemplate = &templateWithBuffer{
+			template: template.Must(template.New("-match-template").Option("missingkey=zero").Parse(config.matchTemplate)),
 			buffer:   bytes.NewBuffer(nil),
 		}
 	}
-}
-
-type lineBuffer []*line
-
-func (b *lineBuffer) flush(line *line) {
-	for i, oldLine := range *b {
-		oldLine.DeltaSecs = line.DeltaSecs
-		oldLine.DeltaNanos = line.DeltaNanos
-		oldLine.DeltaString = line.DeltaString
-		oldLine.Delta = line.Delta
-		oldLine.print()
-		(*b)[i] = nil
-	}
-	*b = (*b)[:0]
-}
-
-func (l *line) print() {
-	if err := printer(l); err != nil {
-		fmt.Fprintln(os.Stderr, "output error:", err)
-	}
-}
-
-func (l *line) parseJSON() {
-	l.Object = new(interface{})
-	if err := json.Unmarshal([]byte(l.Text), &l.Object); err != nil {
-		fmt.Fprintln(os.Stderr, "JSON parse error:", err)
+	if config.matchCondition != "" {
+		config.matchCondition = addTemplateDelimitersIfLiteral(config.matchCondition)
+		matchCondition = &templateWithBuffer{
+			template: template.Must(template.New("-match-condition").Option("missingkey=zero").Funcs(templateFuncs).Parse(config.matchCondition)),
+			buffer:   bytes.NewBuffer(nil),
+		}
 	}
 }
 
@@ -230,66 +273,90 @@ type templateWithBuffer struct {
 	buffer   *bytes.Buffer
 }
 
-func (t *templateWithBuffer) execute(data interface{}) string {
+func (t *templateWithBuffer) executeSilent(data interface{}) (string, error) {
 	t.buffer.Reset()
-	if err := t.template.Execute(t.buffer, data); err != nil {
+	err := t.template.Execute(t.buffer, data)
+	return t.buffer.String(), err
+}
+
+func (t *templateWithBuffer) execute(data interface{}) string {
+	s, err := t.executeSilent(data)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "template error:", err)
 	}
-	return t.buffer.String()
+	return s
+}
+
+type tokenOwner interface {
+	Token() *token
+}
+
+type tokenStream interface {
+	tokenOwner
+	AppendCurrentToBuffer()
+	FlushBuffer()
+	CurrentMatchText() string
+	CopyCurrent() tokenStream
+	Err() error
+	Scan() bool
 }
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
-	lineBuffer := lineBuffer{}
-	line := line{Time: time.Now()}
-	first := line.Time
-	last := line.Time
+	token := tokens.Token()
+	first := time.Now().In(location)
+	last := first
 	i := uint64(0)
-	for scanner.Scan() {
-		now := time.Now()
+
+	for tokens.Scan() {
+		now := time.Now().In(location)
 		delta := now.Sub(last)
 		total := now.Sub(first)
-		line.DeltaSecs = delta.Seconds()
-		line.DeltaNanos = delta.Nanoseconds()
-		line.DeltaString = delta.String()
-		line.Delta = delta
-		line.TotalSecs = total.Seconds()
-		line.TotalNanos = total.Nanoseconds()
-		line.TotalString = total.String()
-		line.Total = total
-		line.TimeSecs = now.Unix()
-		line.TimeNanos = now.UnixNano()
-		line.TimeString = now.Format(config.timeFormat)
-		line.Time = now
-		line.Text = scanner.Text()
-		line.I = i
-		match := &line.Text
-		if config.readJSON {
-			line.parseJSON()
-			if jsonTemplate != nil {
-				line.JSONText = jsonTemplate.execute(line.Object)
-				match = &line.JSONText
-			}
+
+		token.DeltaSecs = delta.Seconds()
+		token.DeltaNanos = delta.Nanoseconds()
+		token.DeltaString = delta.String()
+		token.Delta = delta
+		token.TotalSecs = total.Seconds()
+		token.TotalNanos = total.Nanoseconds()
+		token.TotalString = total.String()
+		token.Total = total
+		token.TimeSecs = now.Unix()
+		token.TimeNanos = now.UnixNano()
+		token.TimeString = now.Format(config.timeFormat)
+		token.Time = now
+
+		token.I = i
+		token.MatchText = tokens.CurrentMatchText()
+
+		matchRegexDefined := matchRegex != nil
+		matchConditionDefined := matchCondition != nil
+		matchDefined := matchRegexDefined || matchConditionDefined
+		printToken := !matchDefined || !config.buffer
+
+		matches := matchDefined
+		if matchRegexDefined {
+			matches = matches && matchRegex.MatchString(token.MatchText)
+		}
+		if matchConditionDefined {
+			result, _ := matchCondition.executeSilent(tokens)
+			matches = matches && strings.TrimSpace(result) == "true"
 		}
 
-		startDefined := start != nil
-		printLine := !startDefined || !config.buffer
-		startMatches := startDefined && start.MatchString(*match)
-		resetStopwatch := !startDefined || startMatches
+		resetStopwatch := !matchDefined || matches
 
-		if printLine {
-			line.print()
+		if printToken {
+			print(tokens)
 		}
-		if startMatches {
-			line.StartText = line.Text
-			line.StartObject = line.Object
+		if matches {
+			currentCopy := tokens.CopyCurrent()
+			currentCopy.Token().Start = nil // Prevent nested .start.start.start blow-up
+			token.Start = currentCopy
 			if config.buffer {
-				lineBuffer.flush(&line)
+				tokens.FlushBuffer()
 			}
 		}
-		if !printLine {
-			lineCopy := line
-			lineBuffer = append(lineBuffer, &lineCopy)
+		if !printToken {
+			tokens.AppendCurrentToBuffer()
 		}
 		if resetStopwatch {
 			last = now
@@ -298,10 +365,10 @@ func main() {
 	}
 
 	if config.buffer {
-		lineBuffer.flush(&line)
+		tokens.FlushBuffer()
 	}
 
-	if err := scanner.Err(); err != nil {
+	if err := tokens.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "input error:", err)
 		os.Exit(1)
 	}
