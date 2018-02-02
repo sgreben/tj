@@ -29,21 +29,21 @@ clean:
 
 release/tj_$(VERSION)_osx_x86_64.zip: binaries/osx_x86_64/tj
 	mkdir -p release
-	cd binaries/osx_x86_64 && zip -r -D ../../release/tj_$(VERSION)_osx_x86_64.zip tj
+	cd ./binaries/osx_x86_64 && zip -r -D ../../release/tj_$(VERSION)_osx_x86_64.zip tj
 	
 binaries/osx_x86_64/tj: $(GOFILES)
 	GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o binaries/osx_x86_64/tj ./cmd/tj
 
 release/tj_$(VERSION)_windows_x86_64.zip: binaries/windows_x86_64/tj.exe
 	mkdir -p release
-	cd binaries/windows_x86_64 && zip -r -D ../../release/tj_$(VERSION)_windows_x86_64.zip tj.exe
+	cd ./binaries/windows_x86_64 && zip -r -D ../../release/tj_$(VERSION)_windows_x86_64.zip tj.exe
 	
 binaries/windows_x86_64/tj.exe: $(GOFILES)
 	GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o binaries/windows_x86_64/tj.exe ./cmd/tj
 
 release/tj_$(VERSION)_linux_x86_64.zip: binaries/linux_x86_64/tj
 	mkdir -p release
-	cd binaries/linux_x86_64 && zip -r -D ../../release/tj_$(VERSION)_linux_x86_64.zip tj
+	cd ./binaries/linux_x86_64 && zip -r -D ../../release/tj_$(VERSION)_linux_x86_64.zip tj
 	
 binaries/linux_x86_64/tj: $(GOFILES)
 	GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$(VERSION)" -o binaries/linux_x86_64/tj ./cmd/tj
