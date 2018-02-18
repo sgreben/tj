@@ -1,4 +1,4 @@
-VERSION = 6.0.0
+VERSION = 6.0.1
 
 PACKAGES := $(shell go list -f {{.Dir}} ./...)
 GOFILES  := $(addsuffix /*.go,$(PACKAGES))
@@ -8,6 +8,7 @@ GOFILES  := $(wildcard $(GOFILES))
 
 # go get -u github.com/github/hub
 release: zip
+	git push
 	hub release delete $(VERSION) || true
 	hub release create $(VERSION) -m "$(VERSION)" -a release/tj_$(VERSION)_osx_x86_64.zip -a release/tj_$(VERSION)_windows_x86_64.zip -a release/tj_$(VERSION)_linux_x86_64.zip
 

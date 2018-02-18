@@ -32,6 +32,12 @@ Also available as a [docker image](https://quay.io/repository/sergey_grebenshchi
 docker pull quay.io/sergey_grebenshchikov/tj
 ```
 
+Or using [docker-get](https://github.com/32b/docker-get):
+
+```bash
+docker-get https://github.com/sgreben/tj
+```
+
 ## Use it
 
 `tj` reads from stdin and writes to stdout.

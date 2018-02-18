@@ -1,2 +1,4 @@
 *
 !binaries/linux_x86_64/tj
+!cmd
+!Makefile
