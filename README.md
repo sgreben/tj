@@ -64,7 +64,7 @@ Usage of tj:
     	alias for -match-condition
   -regex string
     	alias for -match-regex
-  -read-json
+  -readjson
     	parse a sequence of JSON objects from stdin
   -scale string
     	either a sequence of hex colors or one of the predefined color scale names (colors go from fast to slow)
@@ -205,10 +205,10 @@ You can also provide your own color scale using the same syntax as the pre-defin
 
 ### JSON input
 
-Using `-read-json`, you can tell `tj` to parse stdin as a sequence of JSON objects. The parsed object can be referred to via `.Object`, like this:
+Using `-readjson`, you can tell `tj` to parse stdin as a sequence of JSON objects. The parsed object can be referred to via `.Object`, like this:
 
 ```bash
-$ echo '{"hello": "World"}' | tj -read-json -template "{{.TimeString}} {{.Object.hello}}"
+$ echo '{"hello": "World"}' | tj -readjson -template "{{.TimeString}} {{.Object.hello}}"
 ```
 
 ```
@@ -218,7 +218,7 @@ $ echo '{"hello": "World"}' | tj -read-json -template "{{.TimeString}} {{.Object
 The exact JSON string that was parsed can be recovered using `.Text`:
 
 ```bash
-$ echo '{"hello"   :    "World"} {   }' | tj -read-json -template "{{.TimeString}} {{.Text}}"
+$ echo '{"hello"   :    "World"} {   }' | tj -readjson -template "{{.TimeString}} {{.Text}}"
 ```
 
 ```
@@ -240,7 +240,7 @@ This allows you to use only specific fields of JSON objects as stopwatch reset t
 
 ```bash
 $ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) | 
-    tj -read-json -match .reset -regex yes -template "{{.I}} {{.DeltaNanos}}"
+    tj -readjson -match .reset -regex yes -template "{{.I}} {{.DeltaNanos}}"
 ```
 
 ```
@@ -253,7 +253,7 @@ $ (echo {}; sleep 1; echo {}; sleep 1; echo '{"reset": "yes"}'; echo {}) |
 The output of the match template is stored in the field `.MatchText` of the `token` struct:
 
 ```bash
-$ echo '{"message":"hello"}' | tj -read-json -match-template .message -template "{{.TimeString}} {{.MatchText}}"
+$ echo '{"message":"hello"}' | tj -readjson -match-template .message -template "{{.TimeString}} {{.MatchText}}"
 ```
 
 ```
