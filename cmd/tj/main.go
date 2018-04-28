@@ -80,6 +80,8 @@ func print(data interface{}) {
 	}
 }
 
+const ISO8601 = "2006-01-02T15:04:05Z07:00"
+
 var timeFormats = map[string]string{
 	"ANSIC":       time.ANSIC,
 	"UnixDate":    time.UnixDate,
@@ -90,6 +92,7 @@ var timeFormats = map[string]string{
 	"RFC1123":     time.RFC1123,
 	"RFC1123Z":    time.RFC1123Z,
 	"RFC3339":     time.RFC3339,
+	"ISO8601":     ISO8601,
 	"RFC3339Nano": time.RFC3339Nano,
 	"Kitchen":     time.Kitchen,
 	"Stamp":       time.Stamp,
@@ -99,13 +102,16 @@ var timeFormats = map[string]string{
 }
 
 var templates = map[string]string{
-	"Text":      "{{.Text}}",
-	"Time":      "{{.TimeString}} {{.Text}}",
-	"TimeDelta": "{{.TimeString}} +{{.DeltaNanos}} {{.Text}}",
-	"Delta":     "{{.DeltaNanos}} {{.Text}}",
-	"ColorText": "{{color .}}{{.Text}}{{reset}}",
-	"Color":     "{{color .}}█{{reset}} {{.Text}}",
-	"TimeColor": "{{.TimeString}} {{color .}}█{{reset}} {{.Text}}",
+	"Text":           "{{.Text}}",
+	"Time":           "{{.TimeString}} {{.Text}}",
+	"TimeDeltaNanos": "{{.TimeString}} +{{.DeltaNanos}} {{.Text}}",
+	"TimeDelta":      "{{.TimeString}} +{{.Delta}} {{.Text}}",
+	"DeltaNanos":     "{{.DeltaNanos}} {{.Text}}",
+	"Delta":          "{{.Delta}} {{.Text}}",
+	"ColorText":      "{{color .}}{{.Text}}{{reset}}",
+	"Color":          "{{color .}}█{{reset}} {{.Text}}",
+	"DeltaColor":     "{{.Delta}} {{color .}}█{{reset}} {{.Text}}",
+	"TimeColor":      "{{.TimeString}} {{color .}}█{{reset}} {{.Text}}",
 }
 
 var colorScales = map[string]string{
@@ -183,7 +189,7 @@ func addTemplateDelimitersIfLiteral(t string) string {
 func init() {
 	flag.StringVar(&config.template, "template", "", templatesHelp())
 	flag.StringVar(&config.timeFormat, "time-format", "RFC3339", timeFormatsHelp())
-	flag.StringVar(&config.timeZone, "time-zone", "Local", "time zone to use")
+	flag.StringVar(&config.timeZone, "time-zone", "UTC", `time zone to use (or "Local")`)
 	flag.StringVar(&config.matchRegex, "regex", "", "alias for -match-regex")
 	flag.StringVar(&config.matchRegex, "match-regex", "", "a regex pattern. if given, only tokens matching it (re)start the stopwatch")
 	flag.StringVar(&config.matchCondition, "condition", "", "alias for -match-condition")
